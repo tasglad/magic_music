@@ -13,6 +13,7 @@ ev3 = EV3Brick()
 s=serial.Serial("/dev/ttyACM0",9600)
 ev3.speaker.beep()
 
+
 #functions
 def zeroListMaker(n):
      zeroList = [0]*n
@@ -20,7 +21,7 @@ def zeroListMaker(n):
 
 def calibrateNote(noteName, calibrateLength):
      #start calibrate
-     ev3.speaker.say("Starting calibrating note "+noteName)
+     ev3.speaker.say("Start calibrating note "+noteName)
 
      #writes average data to noteName.txt
      noteData = zeroListMaker(calibrateLength)
@@ -39,7 +40,10 @@ def calibrateNote(noteName, calibrateLength):
                     if len(imu) == 6:
                          if float(imu[2]) >= .2:
                               print('rest position')
+                              print(imu[2])
                          elif float(imu[2]) <= .2:
+                              print('taking data')
+                              print(imu[2])
                               noteData[i] = imu
                               i = i + 1
           except Exception as e: print(e)
@@ -52,7 +56,6 @@ def calibrateNote(noteName, calibrateLength):
           outFile.close
      
      ev3.speaker.say("Done calibrating note "+noteName)
-     wait(3000)
 
 def parseNote(noteName):
      fileName = noteName + '.txt'
@@ -66,35 +69,97 @@ def parseNote(noteName):
           line = line[2:-2]
           line = line.split("', '")
           for i in range(0,6):
-               idealNote[i] = idealNote[i]+float(line[i])
+               if line[i] == "":
+                    line[i] = 0
+               idealNote[i] = float(idealNote[i])+float(line[i])
      for i in range(0,6):
           idealNote[i] = idealNote[i]/lineCount
 
      return idealNote
 
+def knn(imu,idealMatrix):
+     minDist = 100000000
+     min_j = 0
+     for j in range(0,len(idealMatrix)):
+          idealNote = idealMatrix[j]
+          currTotal = 0
+          for i in range(0,3):
+               currTotal += (float(imu[i])-float(idealNote[i]))**2
+          currTotal = currTotal**(1/2)
+          if (currTotal < minDist):
+               minDist = currTotal
+               min_j = j
+
+     chosenNote = mapNote(min_j)
+
+     return chosenNote
+
+def mapNote(index):
+     if index == 0:
+          note = 'A'
+     elif index == 1:
+          note = 'B'
+     elif index == 2:
+          note = 'C'
+     elif index == 3:
+          note = 'D'
+     elif index == 4:
+          note = 'E'
+     elif index == 5:
+          note = 'F'
+     elif index == 6:
+          note = 'G'
+     return note
+
+
 # Calibration of each note
 calLength = 100
 calibrateNote('A',calLength)
 calibrateNote('B',calLength)
+calibrateNote('C',calLength)
+calibrateNote('D',calLength)
+calibrateNote('E',calLength)
+calibrateNote('F',calLength)
+calibrateNote('G',calLength)
+
 
 # Parse note files
 #reads file and decides what a perfect 'A' note looks like etc.
+ev3.speaker.say("Processing")
 A_ideal = parseNote('A')
 print(A_ideal)
-A_ideal = parseNote('B')
+B_ideal = parseNote('B')
 print(B_ideal)
+C_ideal = parseNote('C')
+print(C_ideal)
+D_ideal = parseNote('D')
+print(D_ideal)
+E_ideal = parseNote('E')
+print(E_ideal)
+F_ideal = parseNote('F')
+print(F_ideal)
+G_ideal = parseNote('G')
+print(G_ideal)
+
+idealMatrix = [A_ideal,B_ideal,C_ideal,D_ideal,E_ideal,F_ideal,G_ideal]
 
 # Run a music (for each note decide what it is closest to and play that note)
+ev3.speaker.say("Begin composing")
 while True:
-     try:
-          data=s.read(s.inWaiting()).decode("utf-8")
-          data = data.splitlines()
-          if len(data) == 1:
-               imu = data[0].split(',')
-               if len(imu) == 6:
-                    
+     #try:
+     data=s.read(s.inWaiting()).decode("utf-8")
+     data = data.splitlines()
+     if len(data) == 1:
+          imu = data[0].split(',')
+          if len(imu) == 6:
+               if float(imu[2]) >= .2:
+                    print('rest position')
+               elif float(imu[2]) <= .2:
+                    chosenNote = knn(imu,idealMatrix)
+                    ev3.speaker.say(chosenNote)
+                    ev3.speaker.play_notes([chosenNote+'4/4'],tempo=120)
 
-     except Exception as e: print(e)
+     #except Exception as e: print(e)
 
 
 
